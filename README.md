@@ -1,38 +1,23 @@
 - Get all nifty 250 stocks from official nifty website
 
-- Assumptions
-  - 1 exchange operates in only 1 country (there are some exchanges that operate throughout europe but ignoring them)
-  - all tickers in an exchange are traded in the same currency and the currency doesn't change (it might but very rarely)
-  
+- stock market is open for 250 days / year
+- assuming 1000 companies, we have 250 * 1000 = 250k records / year
+- if I scrape past 10 years, then it becomes 2.5 mil records, with a rate of increase of 250k per year
+  postgres should be able to handle this
+
 - Database schema
-- exchange
-  - id  not null primary key varchar
-  - short_name  not null varchar unique
-  - name  not null varchar
-  - currency  varchar not null enum ('INR', 'USD')
-  - country_code  varchar not null enum ('USA', 'IND')
-  - other_data  jsonb not null
-  - created_on  not null timestampz
-  - updated_on  not null timestampz
-
-- ticker
-  - id  not null primary key varchar
-  - exchange_id  references exchange.id not null
-  - symbol  varchar not null
-  - yahoo_symbol  varchar not null
-  - name  varchar not null
-  - type  varchar not null
-  - listed_on  timestampz
-  - other_data  jsonb not null
-  - created_on  not null timestampz
-  - updated_on  not null timestampz
-UNIQUE(exchange_id, symbol)
-UNIQUE(exchange_id, yahoo_symbol)
-
 - ticker_day_trade
   - id  not null primary key varchar
-  - ticker_id  references ticker.id not null
-  - date (dd-mm-yyyy)  not null date col
+  - exchange_symbol  not null varchar
+  - ticker_symbol  varchar not null
+  - ticker_symbol_yahoo  not null
+  - trading_date (dd-mm-yyyy)  not null date
+  - currency  not null varchar
+  - country_code  not null varchar
+  - type  varchar not null
+  - name  varchar not null
+  - listed_on  timestampz not null
+
   - open  numeric not null
   - high  numeric not null
   - low  numeric not null
@@ -42,12 +27,13 @@ UNIQUE(exchange_id, yahoo_symbol)
   - stock_splits  numeric not null
   
   - share_price  numeric not null
-  - float_shares  int not null
-  - total_shares  int not null
-  - market_cap  numeric not null
+  - float_shares  int
+  - total_shares  int
+  - market_cap  numeric
   
   - other_data  jsonb not null
   - created_on timestampz not null
   - updated_on timestampz not null
-UNIQUE(ticker_id, date)
+UNIQUE(exchange, symbol, trading_date)
+UNIQUE(exchange, yahoo_symbol, trading_date)
   

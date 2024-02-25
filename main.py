@@ -72,4 +72,4 @@ def get_ticker_details(tickerSymbol):
     print(f"Website: {tickerInfo['website']}")
 
 
-get_listed_on()
+get_day_info()
