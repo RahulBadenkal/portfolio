@@ -1,8 +1,23 @@
+import json
 from datetime import datetime
 
 import pytz
 import yfinance as yf
 import pandas as pd
+
+
+def get_info():
+    # Fetch data for a specific ticker
+    ticker = yf.Ticker("HDFC")
+
+    # Calling history automatically downloads info data
+    ticker.history(interval="1d", start='1980-04-06', end='1980-04-07')
+
+    t1 = datetime.now()
+    x = ticker.info
+    # print(json.dumps(ticker.info, indent=2, default=str))
+    t2 = datetime.now()
+    print("took", t2 - t1)
 
 
 def get_market_cap():
@@ -37,7 +52,7 @@ def get_day_info():
     tickerData = yf.Ticker(tickerSymbol)
 
     # Get the historical prices for this ticker
-    tickerDf = tickerData.history(period='1m', start='2022-01-02', end='2024-01-03')
+    tickerDf = tickerData.history(interval="1d", start='2024-04-06', end='2024-04-07')
 
     # Print the data
     pd.set_option('display.max_columns', None)
@@ -72,4 +87,7 @@ def get_ticker_details(tickerSymbol):
     print(f"Website: {tickerInfo['website']}")
 
 
-get_day_info()
+# msft = yf.Ticker("MSFT")
+# print(msft)
+get_info()
+# get_day_info()
