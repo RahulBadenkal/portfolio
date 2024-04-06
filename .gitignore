@@ -1,1 +1,2 @@
 .env*
+exchange_listing_sync/data.json

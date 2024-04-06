@@ -1,5 +1,8 @@
 - Get all nifty 250 stocks from official nifty website
 
+Use this library to get to know which all days is the stock market open
+https://pandas-market-calendars.readthedocs.io/en/latest/calendars.html
+
 - stock market is open for 250 days / year
 - assuming 1000 companies, we have 250 * 1000 = 250k records / year
 - if I scrape past 10 years, then it becomes 2.5 mil records, with a rate of increase of 250k per year
