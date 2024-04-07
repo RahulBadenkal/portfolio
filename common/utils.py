@@ -3,6 +3,7 @@ import csv
 import io
 import logging
 import traceback
+from datetime import datetime, date
 
 
 def get_stack_trace(exception):
@@ -59,3 +60,14 @@ def csv_to_json(data, auto_correct_null=True):
                 if value == 'null':
                     row[key] = None
     return data
+
+
+def json_serial(datetime_fmt: str = None):
+    """JSON serializer for objects not serializable by default json code"""
+
+    def _serialize(obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        raise TypeError("Type %s not serializable" % type(obj))
+
+    return _serialize

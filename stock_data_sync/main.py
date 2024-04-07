@@ -2,19 +2,88 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from functools import reduce
-from typing import Optional, List, Literal, Any
+from typing import Optional, List, Literal, Any, Annotated
 import httpx
 import json
 import exchange_calendars as xcals
+import math
 import pandas as pd
 import yfinance as yf
+from pydantic import BaseModel, AfterValidator
 
 from common.app_utils import USA_TIMEZONE, IND_TIMEZONE
 from common.httpx_utils import httpx_raise_for_status, httpx_wrapper
+from common.pydantic_utils import str_validator, pos_num_check
 from common.utils import csv_to_json, get_stack_trace
 import logging
 
 from stock_data_sync.config import Config
+
+
+def stock_number_check(value):
+    if value is not None and (math.isnan(value) or not math.isfinite(value) or value == 0):
+        raise ValueError(f"Stock value can't be {value}")
+    return value
+
+
+class DayStockPrice(BaseModel):
+    exchange_ticker: Annotated[
+        str,
+        AfterValidator(str_validator(trim=True, allow_empty=False)),
+    ]
+    ticker: Annotated[
+        str,
+        AfterValidator(str_validator(trim=True, allow_empty=False)),
+    ]
+    date: date
+    currency: Annotated[
+        str,
+        AfterValidator(str_validator(trim=True, allow_empty=False)),
+    ]
+    open: Annotated[
+        float,
+        AfterValidator(stock_number_check),
+    ]
+    low: Annotated[
+        float,
+        AfterValidator(stock_number_check),
+    ]
+    high: Annotated[
+        float,
+        AfterValidator(stock_number_check),
+    ]
+    close: Annotated[
+        float,
+        AfterValidator(stock_number_check),
+    ]
+    volume: Annotated[
+        float,
+        AfterValidator(stock_number_check),
+    ]
+    stock_splits: Annotated[
+        float,
+        AfterValidator(stock_number_check),
+    ]
+    dividends: Annotated[
+        float,
+        AfterValidator(stock_number_check),
+    ]
+    shares: Annotated[
+        Optional[float],
+        AfterValidator(stock_number_check),
+    ]
+    market_cap: Annotated[
+        Optional[float],
+        AfterValidator(stock_number_check),
+    ]
+    pe_ratio: Annotated[
+        Optional[float],
+        AfterValidator(stock_number_check),
+    ]
+    eps: Annotated[
+        Optional[float],
+        AfterValidator(stock_number_check),
+    ]
 
 
 def extract_yticker_as_json(ticker: yf.Ticker):
@@ -108,26 +177,27 @@ def scrape_ticker_for_date(exchange_ticker: str, stock_ticker: str, my_date: dat
 
     # Calling history automatically downloads info data
     data = ticker.history(interval="1d", start=my_date.strftime("%Y-%m-%d"), end=(my_date + timedelta(days=1)).strftime("%Y-%m-%d")).to_dict(orient="records")[0]
-    day_stock_price = {
-        "exchange_ticker": exchange_ticker,
-        "ticker": stock_ticker,
-        "date": my_date,
-        "open": data["Open"],
-        "low": data["Low"],
-        "high": data["High"],
-        "close": data["Close"],
-        "volume": data["Volume"],
-        "dividends": data["Dividends"],
-        "stock_splits": data["Stock Splits"],
-        "market_cap": ticker.info["marketCap"],
-        "currency": ticker.info["currency"],
-        "shares": ticker.info["sharesOutstanding"],
-        "pe_ratio": ticker.info["trailingPE"],  # Trailing P/E Ratio = Current Market Price per Share / Earnings per Share (EPS) over the past 12 months
-        "eps": ticker.info["trailingEps"],  # Earnings per share = (Net Income − Dividends on Preferred Stock) / Average Outstanding Shares
-    }
+
+    day_stock_price = DayStockPrice(
+        exchange_ticker=exchange_ticker,
+        ticker=stock_ticker,
+        date=my_date,
+        open=data.get("Open"),
+        low=data.get("Low"),
+        high=data.get("High"),
+        close=data.get("Close"),
+        volume=data.get("Volume"),
+        dividends=data.get("Dividends"),
+        stock_splits=data.get("Stock Splits"),
+        market_cap=ticker.info.get("marketCap"),
+        currency=ticker.info.get("currency"),
+        shares=ticker.info.get("sharesOutstanding"),
+        pe_ratio=ticker.info.get("trailingPE"),  # Trailing P/E Ratio = Current Market Price per Share / Earnings per Share (EPS) over the past 12 months
+        eps=ticker.info.get("trailingEps"),  # Earnings per share = (Net Income − Dividends on Preferred Stock) / Average Outstanding Share
+    )
 
     return {
-        "price": day_stock_price, "other_data": extract_yticker_as_json(ticker)
+        "price": day_stock_price.model_dump(), "other_data": extract_yticker_as_json(ticker)
     }
 
 
@@ -197,17 +267,18 @@ async def execute_job(db_connection, job_id: str, country_code: Literal["USA", "
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(executor, func, *args)
         return result
-    executor = ThreadPoolExecutor(max_workers=20)
+    executor = ThreadPoolExecutor(max_workers=1)
     tasks = [_run_sync_in_async(executor, scrape_ticker_for_date, listing['exchange_ticker'], listing['ticker'], current_date, session, None) for listing in listings]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     success, failed = 0, 0
-    for result in results:
+    for index, result in enumerate(results):
         if isinstance(result, Exception):
-            print(get_stack_trace(result))
+            print("Failed", listings[index]['ticker'], get_stack_trace(result))
             failed += 1
         else:
-            # print(result)
+            print("Success", listings[index]['ticker'], result['price'])
             success += 1
+        print("------------------------")
     print(success, failed)
 
     logging.info("Preparing job log message")
